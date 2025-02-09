@@ -1,3 +1,6 @@
+"""
+Copy database from MS SQL to PostgreSQL module
+"""
 import os
 import json
 import datetime
@@ -11,14 +14,14 @@ def read_json() -> dict:
     json_file = os.path.dirname(__file__) + "/mssql2postgre.json"
     if not os.path.exists(json_file):
         raise Exception("No setting json file mssql2postgre.json")
-    with open(json_file, 'r') as file:
+    with open(json_file, 'r', encoding="utf-8") as file:
         json_data = json.load(file)
     dict_sql = {}
     for key, value in json_data.items():
         if isinstance(value, str) and value.endswith(".sql"):
             sql_file = os.path.dirname(__file__) + "/SQL/" + value
-            with open(sql_file, 'r') as f:
-                sql = f.read()
+            with open(sql_file, 'r', encoding="utf-8") as file:
+                sql = file.read()
             dict_sql[key + "_sql"] = sql
         elif isinstance(value, str) and "@OS." in value:
             matches = re.findall(r"(?P<os_variable>\@OS\.(\w|\_)+)", value)
@@ -35,19 +38,19 @@ def read_json() -> dict:
 
 def connect(json_data: dict):
     """ Connect to Databases """
-    connectionString = json_data['MsSQLConnection']
-    conn_sql = pyodbc.connect(connectionString) 
+    connect_string = json_data['MsSQLConnection']
+    conn_mssql = pyodbc.connect(connect_string)
     print("Connect to MS SQL")
-    connectionString = json_data['PostgresqlConnection']
-    conn_pstg = psycopg2.connect(connectionString)
+    connect_string = json_data['PostgresqlConnection']
+    conn_postgre = psycopg2.connect(connect_string)
     print("Connect to Posgresql")
-    conn_pstg.autocommit = True
-    return conn_sql, conn_pstg
+    conn_postgre.autocommit = True
+    return conn_mssql, conn_postgre
 
 def create_table(sql_create: str, table_name: str, conn_sql: pyodbc.Connection, conn_pstg: psycopg2.extensions.connection) -> None:
     """ Create table """
     cursor_sql = conn_sql.cursor()
-    cursor_pstg = conn_pstg.cursor() 
+    cursor_pstg = conn_pstg.cursor()
     print(table_name)
     if "'" not in table_name:
         SQL = sql_create.replace("%s", table_name)
@@ -58,7 +61,6 @@ def create_table(sql_create: str, table_name: str, conn_sql: pyodbc.Connection, 
     SQL = sql_row.SQL.replace('\r', '\n')
     print(SQL)
     cursor_pstg.execute(SQL)
-    conn_pstg.commit
 
 def create_tables(json_data, conn_sql: pyodbc.Connection, conn_pstg: psycopg2.extensions.connection) -> None:
     """ Create tables without indexes and constraint """
@@ -79,7 +81,7 @@ def get_pg_table_info(json_data, table_name: str, conn_pstg: psycopg2.extensions
     """ Getting information about a PostgreSQL table """
     pg_objects = json_data['PgObjectsName_sql']
     pg_objects = pg_objects.replace(':Table_Name', "'" + table_name+ "'")
-    cursor_pstg = conn_pstg.cursor() 
+    cursor_pstg = conn_pstg.cursor()
     cursor_pstg.execute(pg_objects)
     columns = [desc[0] for desc in cursor_pstg.description]
     row = cursor_pstg.fetchone()
@@ -105,7 +107,7 @@ def copy_data(json_data, conn_sql: pyodbc.Connection, conn_pstg: psycopg2.extens
         cursor_pstg.execute(ISQL, dict_params)
 
     cursor_sql = conn_sql.cursor()
-    cursor_pstg = conn_pstg.cursor() 
+    cursor_pstg = conn_pstg.cursor()
 
     ms_objects = json_data['MsObjectsName_sql']
     print("Get objects list")
@@ -116,7 +118,7 @@ def copy_data(json_data, conn_sql: pyodbc.Connection, conn_pstg: psycopg2.extens
     sql_insert = json_data['InsertTable_sql']
 
     # Create SQL Insert
-    for row in rows:        
+    for row in rows:
         table_name = row.name
         if "'" in table_name:
             table_name = table_name.replace("'", "''")
@@ -137,7 +139,7 @@ def copy_data(json_data, conn_sql: pyodbc.Connection, conn_pstg: psycopg2.extens
         else:
             print(f"was row_count: {row_count} new row_count: {row.row_count}")
             cursor_pstg.execute(f"truncate table {pg_table_name}")
-            
+
         fields_sql = json_data['FieldsMapping_sql']
         fields_sql = fields_sql.replace("%s", table_name)
         fields_data = cursor_sql.execute(fields_sql)
@@ -164,33 +166,18 @@ def copy_data(json_data, conn_sql: pyodbc.Connection, conn_pstg: psycopg2.extens
                 if not cursor:
                     break
                 key_has_wrong_char = False
-                for row_data in cursor:      
+                for row_data in cursor:
                     dict_row = dict(zip(columns, row_data))
                     for key, value in dict_row.items():
-                        #if isinstance(value, str) and value:
-                        #    if str(value)[-1] == "\x00":
-                        #        raise Exception(f"key {key} has \0x00")
-                        #        s = str(value)
-                        #        while s and s[-1] == "\x00":
-                        #            s = s[:-1]
-                        #        dict_row[key] = 
                         if '(' in key or ')' in key:
                             key_has_wrong_char = True
                         if key in fields_dict and value and \
                             (fields_dict[key][0] in ["TEXT", "VARCHAR", "NTEXT", "NVARCHAR"] and fields_dict[key][1] == "BYTEA"):
                             value = bytearray(value, "utf8")
-                        #if isinstance(value, str) and value:
-                        #    if "\x00" in str(value):
-                        #        raise Exception(f"key {key} has \0x00")
                         if key in dict_params:
                             dict_params[key].append(value)
                         else:
                             dict_params[key] = [value]
-                            #else:
-                            #    b = bytearray(value, "utf8")
-                            #    s = b.decode("utf-8", errors="replace").replace("\x00", "\uFFFD")
-                            #    dict_params[key] = s                
-                    #cursor_pstg.execute(ISQL, dict_params)
                     count += 1
                     batch_count += 1
                     if count > 0 and count % batch_size == 0:
@@ -219,7 +206,6 @@ def main() -> None:
 
     #create_tables(json_data, conn_sql, conn_pstg)
     copy_data(json_data, conn_sql, conn_pstg)
-
 
 if __name__ == "__main__":
     main()
