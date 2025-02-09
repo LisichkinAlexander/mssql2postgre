@@ -1,0 +1,10 @@
+{
+    "MsSQLConnection": "DRIVER={SQL Server Native Client 11.0};SERVER=@OS.MS_SQL_SERVER;DATABASE=@OS.MS_SQL_DATABASE;UID=@OS.MS_SQL_USER;PWD=@OS.MS_SQL_PASSWORD;MARS_Connection=Yes",
+    "PostgresqlConnection": "host='@OS.POSTGRESQL_SERVER' dbname='@OS.POSTGRESQL_DATABASE' user='@OS.POSTGRESQL_USER' password='@OS.POSTGRESQL_PASSWORD'",
+    "MsObjectsName": "ms_objects_name.sql",
+    "PgObjectsName": "pg_objects_name.sql",
+    "CreateTable": "create_table.sql",
+    "InsertTable": "insert_table.sql",
+    "FieldsMapping": "fields_mapping.sql",
+    "BatchSize": 25000
+}
