@@ -27,5 +27,4 @@ where xtype= 'U' and name not like '%$%' and name not like '[_]%'
 	join sys.types t WITH(NOLOCK) on c.system_type_id = t.system_type_id
 	where t.name = 'datetimeoffset'
   )
-  and name >= 'ZTESTGLOSS'
 order by o.name

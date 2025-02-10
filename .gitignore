@@ -1,0 +1,4 @@
+**/.vscode/**
+*.pyc
+*.bak
+*.code-workspace
