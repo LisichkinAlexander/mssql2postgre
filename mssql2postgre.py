@@ -19,21 +19,24 @@ def connect(json_data: dict):
     conn_postgre.autocommit = True
     return conn_mssql, conn_postgre
 
-def create_table(sql_create: str, table_name: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
-    """ Create table """
+def execute_sql(sql: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
+    """ Выполнить sql """
     cursor_mssql = conn_mssql.cursor()
     cursor_postgre = conn_postgre.cursor()
-    print(table_name)
-    if "'" not in table_name:
-        SQL = sql_create.replace("%s", table_name)
-    else:
-        SQL = sql_create.replace("%s", table_name.replace("'", "''"))
-    cursor_mssql.execute(SQL)
-    sql_row = cursor_mssql.fetchone()
-    SQL = sql_row.SQL.replace('\r', '\n')
-    print(SQL)
-    cursor_postgre.execute(SQL)
-    cursor_postgre.commit()
+    cursor_mssql.execute(sql)
+    rows = cursor_mssql.fetchall()
+    for row in rows:
+        sql = row.SQL.replace('\n', '').replace('\r', '')
+        if sql:
+            sql_list  = sql.split(";")
+            for sql in sql_list:
+                print(sql)
+                cursor_postgre.execute(sql)
+
+def execute_script(json_data: dict, script_name: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
+    """ Выполнить script_name """
+    sql = json_data[script_name]
+    execute_sql(sql, conn_mssql, conn_postgre)
 
 def create_tables(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
     """ Create tables without indexes and constraint """
@@ -48,7 +51,11 @@ def create_tables(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycop
 
     # Create table
     for row in rows:
-        create_table(sql_create, row.name, conn_mssql, conn_postgre)
+        if "'" not in row.name:
+            sql = sql_create.replace("%s", row.name)
+        else:
+            sql = sql_create.replace("%s", row.name.replace("'", "''"))
+        execute_sql(sql, conn_mssql, conn_postgre)
 
 def get_pg_table_info(json_data, table_name: str, conn_postgre: psycopg2.extensions.connection):
     """ Getting information about a PostgreSQL table """
@@ -103,12 +110,14 @@ def copy_data(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.e
         if row_count is None and column_count is None:
             # Table not exist
             sql_create = json_data['CreateTable_sql']
-            create_table(sql_create, table_name, conn_mssql, conn_postgre)
+            sql = sql_create.replace("%s", table_name)
+            execute_sql(sql, conn_mssql, conn_postgre)
         elif column_count != row.column_count:
             # Table column changed - recreate table
             cursor_postgre.execute(f"drop table {pg_table_name}")
             sql_create = json_data['CreateTable_sql']
-            create_table(sql_create, table_name, conn_mssql, conn_postgre)
+            sql = sql_create.replace("%s", table_name)
+            execute_sql(sql, conn_mssql, conn_postgre)
         else:
             print(f"was row_count: {row_count} new row_count: {row.row_count}")
             cursor_postgre.execute(f"truncate table {pg_table_name}")
@@ -172,44 +181,15 @@ def copy_data(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.e
 
 def create_unique_constraint(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
     """ Create unique constraint """
-    cursor_mssql = conn_mssql.cursor()
-    cursor_postgre = conn_postgre.cursor()
-    sql = json_data['CreateUniqueConstraint_sql']
-    cursor_mssql.execute(sql)
-    sql_row = cursor_mssql.fetchone()
-    sql = sql_row.SQL.replace('\n', '').replace('\r', '')
-    sql_list = sql.split(";")
-    for sql in sql_list:
-        if sql:
-            print(sql)
-            cursor_postgre.execute(sql)
+    execute_script(json_data, 'CreateUniqueConstraint_sql', conn_mssql, conn_postgre)
 
 def create_foreign_key(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
     """ Create foreign key constraint """
-    cursor_mssql = conn_mssql.cursor()
-    cursor_postgre = conn_postgre.cursor()
-    sql = json_data['CreateForeignKey_sql']
-    cursor_mssql.execute(sql)
-    sql_row = cursor_mssql.fetchone()
-    sql = sql_row.SQL.replace('\n', '').replace('\r', '')
-    sql_list = sql.split(";")
-    for sql in sql_list:
-        if sql:
-            print(sql)
-            cursor_postgre.execute(sql)
+    execute_script(json_data, 'CreateForeignKey_sql', conn_mssql, conn_postgre)
 
 def create_index(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
     """ Create indexes """
-    cursor_mssql = conn_mssql.cursor()
-    cursor_postgre = conn_postgre.cursor()
-    sql = json_data['CreateIndex_sql']
-    cursor_mssql.execute(sql)
-    rows = cursor_mssql.fetchall()
-    for row in rows:
-        sql = row.SQL.replace('\n', '').replace('\r', '')
-        if sql:
-            print(sql)
-            cursor_postgre.execute(sql)
+    execute_script(json_data, 'CreateIndex_sql', conn_mssql, conn_postgre)
 
 def main() -> None:
     """
@@ -218,20 +198,32 @@ def main() -> None:
     json_data = read_json_settings("mssql2postgre.json")
     conn_mssql, conn_postgre = connect(json_data)
 
-    if get_bool_setting(json_data, "NeedCreateTable", True):
-        create_tables(json_data, conn_mssql, conn_postgre)
+    copy_list = [
+        {
+            "func": create_tables,
+            "check": "NeedCreateTable"
+        },
+        {
+            "func": copy_data,
+            "check": "NeedCreateTable"
+        },
+        {
+            "func": create_unique_constraint,
+            "check": "NeedUniqueConstraint"
+        },
+        {
+            "func": create_foreign_key,
+            "check": "NeedForeignKey"
+        },
+        {
+            "func": create_index,
+            "check": "NeedIndex"
+        },
+    ]
 
-    if get_bool_setting(json_data, "NeedCopyData", True):
-        copy_data(json_data, conn_mssql, conn_postgre)
-
-    if get_bool_setting(json_data, "NeedUniqueConstraint", True):
-        create_unique_constraint(json_data, conn_mssql, conn_postgre)
-
-    if get_bool_setting(json_data, "NeedForeignKey", True):
-        create_foreign_key(json_data, conn_mssql, conn_postgre)
-
-    if get_bool_setting(json_data, "NeedIndex", True):
-        create_index(json_data, conn_mssql, conn_postgre)
+    for step in copy_list:
+        if get_bool_setting(json_data, step["check"], True):
+            step["func"](json_data, conn_mssql, conn_postgre)
 
 if __name__ == "__main__":
     main()

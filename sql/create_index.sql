@@ -18,7 +18,7 @@ IF OBJECT_ID('tempdb..#SQL_TEXT') IS NOT NULL
 begin
     DROP TABLE #SQL_TEXT
 end
-create table #SQL_TEXT ([SQL] varchar(max))
+create table #SQL_TEXT ([SQL] varchar(max), [name] sysname, [index_name] sysname)
 
 declare CursorIndex cursor for
  select schema_name(t.schema_id) [schema_name], t.name, ix.name,
@@ -82,7 +82,7 @@ begin
  if @is_disabled=1 
   set  @TSQLScripDisableIndex=  CHAR(13) +'ALTER INDEX ' +QUOTENAME(@IndexName) + ' ON ' + QUOTENAME(@SchemaName) +'.'+ QUOTENAME(@TableName) + ' DISABLE;' + CHAR(13) 
  --print @TSQLScripCreationIndex
- insert into #SQL_TEXT ([sql]) values (@TSQLScripCreationIndex)
+ insert into #SQL_TEXT ([sql], [name], [index_name]) values (@TSQLScripCreationIndex, @TableName, @IndexName)
  
  fetch next from CursorIndex into  @SchemaName, @TableName, @IndexName, @is_unique, @IndexTypeDesc, @IndexOptions,@is_disabled, @FileGroupName
 end
@@ -90,3 +90,4 @@ close CursorIndex
 deallocate CursorIndex
 
 select * from #SQL_TEXT
+order by [name], [index_name]
