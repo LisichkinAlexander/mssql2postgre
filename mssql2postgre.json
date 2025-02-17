@@ -6,5 +6,8 @@
     "CreateTable": "create_table.sql",
     "InsertTable": "insert_table.sql",
     "FieldsMapping": "fields_mapping.sql",
+    "CreateUniqueConstraint": "create_unique_constraint.sql",
+    "CreateForeignKey": "create_foreign_key.sql",
+    "CreateIndex": "create_index.sql",
     "BatchSize": 25000
 }

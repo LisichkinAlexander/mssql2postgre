@@ -170,6 +170,47 @@ def copy_data(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.e
         print(f"{datetime.datetime.now()}: inserted {count} data into {table_name}")
     print("All data copied")
 
+def create_unique_constraint(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
+    """ Create unique constraint """
+    cursor_mssql = conn_mssql.cursor()
+    cursor_postgre = conn_postgre.cursor()
+    sql = json_data['CreateUniqueConstraint_sql']
+    cursor_mssql.execute(sql)
+    sql_row = cursor_mssql.fetchone()
+    sql = sql_row.SQL.replace('\n', '').replace('\r', '')
+    sql_list = sql.split(";")
+    for sql in sql_list:
+        if sql:
+            print(sql)
+            cursor_postgre.execute(sql)
+
+def create_foreign_key(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
+    """ Create foreign key constraint """
+    cursor_mssql = conn_mssql.cursor()
+    cursor_postgre = conn_postgre.cursor()
+    sql = json_data['CreateForeignKey_sql']
+    cursor_mssql.execute(sql)
+    sql_row = cursor_mssql.fetchone()
+    sql = sql_row.SQL.replace('\n', '').replace('\r', '')
+    sql_list = sql.split(";")
+    for sql in sql_list:
+        if sql:
+            print(sql)
+            cursor_postgre.execute(sql)
+
+def create_index(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
+    """ Create indexes """
+    cursor_mssql = conn_mssql.cursor()
+    cursor_postgre = conn_postgre.cursor()
+    sql = json_data['CreateIndex_sql']
+    cursor_mssql.execute(sql)
+    rows = cursor_mssql.fetchall()
+    for row in rows:
+        sql = row.SQL.replace('\n', '').replace('\r', '')
+        if sql:
+            print(sql)
+            cursor_postgre.execute(sql)
+
 def main() -> None:
     """
     Run coping
@@ -183,8 +224,14 @@ def main() -> None:
     if get_bool_setting(json_data, "NeedCopyData", True):
         copy_data(json_data, conn_mssql, conn_postgre)
 
-    # TODO
-    # copy constraint and check
+    if get_bool_setting(json_data, "NeedUniqueConstraint", True):
+        create_unique_constraint(json_data, conn_mssql, conn_postgre)
+
+    if get_bool_setting(json_data, "NeedForeignKey", True):
+        create_foreign_key(json_data, conn_mssql, conn_postgre)
+
+    if get_bool_setting(json_data, "NeedIndex", True):
+        create_index(json_data, conn_mssql, conn_postgre)
 
 if __name__ == "__main__":
     main()
