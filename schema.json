@@ -1,0 +1,48 @@
+{
+    "type": "object",
+    "title": "mssql2postgre",
+    "description": "Copy database from MS SQL to PostgreSQL settings",
+    "properties": {
+        "MsSQLConnection": {
+            "type": "string",
+            "description": "Connection to MS SQL Server"
+        },
+        "PostgresqlConnection": {
+            "type": "string",
+            "description": "Connection to PostgreSql"
+        },
+        "CopyFunctions": {
+            "type" : "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "Function": {
+                        "enum": [
+                            "create_tables",
+                            "copy_data",
+                            "execute_script"
+                        ],
+                        "description": "Python function name"
+                    },
+                    "Execute": {
+                        "type": "boolean",
+                        "description": "Flag is need to execute"
+                    },
+                    "Description": {
+                        "type": "string",
+                        "description": "Description"
+                    }
+                },
+                "required": [
+                    "Function",
+                    "Execute"
+                ]
+            }
+        }
+    },
+    "required": [
+        "MsSQLConnection", 
+        "PostgresqlConnection",
+        "CopyFunctions"
+    ]
+}

@@ -1,12 +1,12 @@
 """
 Copy database from MS SQL to PostgreSQL module
 """
+import sys
 import datetime
 import pyodbc
 import psycopg2
 import psycopg2.extensions
-from settings_utils import read_json_settings, get_bool_setting
-
+import settings_utils
 
 def connect(json_data: dict):
     """ Connect to Databases """
@@ -35,7 +35,7 @@ def execute_sql(sql: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.
                 print(sql_text_list[idx])
                 cursor_postgre.execute(sql)
 
-def execute_script(json_data: dict, script_name: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
+def execute_script(json_data: dict, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection, script_name: str) -> None:
     """ Выполнить script_name """
     sql = json_data[script_name]
     execute_sql(sql, conn_mssql, conn_postgre)
@@ -142,8 +142,8 @@ def copy_data(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.e
         batch_count = 0
         batch_size = 50000 if 'BatchSize' not in json_data else int(json_data['BatchSize'])
         cursor_postgre.execute(f"ALTER TABLE {pg_table_name} SET UNLOGGED;")
+        is_error = False
         try:
-            is_error = False
             cursor_postgre.execute("begin")
             try:
                 dict_params = {}
@@ -176,7 +176,7 @@ def copy_data(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.e
                         print(f"inserted in batch more {batch_count} records")
                         insert_to_db(cursor_postgre, insert_sql, dict_params, key_has_wrong_char)
                 # end while
-            except Exception as e:
+            except:
                 is_error = True
                 raise
             print("commit")
@@ -203,35 +203,18 @@ def main() -> None:
     """
     Run coping
     """
-    json_data = read_json_settings("mssql2postgre.json")
+    json_data = settings_utils.read_json_settings("mssql2postgre.json")
     conn_mssql, conn_postgre = connect(json_data)
 
-    copy_list = [
-        {
-            "func": create_tables,
-            "check": "NeedCreateTable"
-        },
-        {
-            "func": copy_data,
-            "check": "NeedCopyData"
-        },
-        {
-            "func": create_unique_constraint,
-            "check": "NeedUniqueConstraint"
-        },
-        {
-            "func": create_foreign_key,
-            "check": "NeedForeignKey"
-        },
-        {
-            "func": create_index,
-            "check": "NeedIndex"
-        },
-    ]
-
-    for step in copy_list:
-        if get_bool_setting(json_data, step["check"], True):
-            step["func"](json_data, conn_mssql, conn_postgre)
+    copy_functions = json_data["CopyFunctions"]
+    this_module = sys.modules[__name__]
+    for step in copy_functions:
+        if settings_utils.strtobool(step["Execute"]):
+            if "ScriptName" in step:
+                params = (json_data, conn_mssql, conn_postgre, step["ScriptName"])
+            else:
+                params = (json_data, conn_mssql, conn_postgre)
+            getattr(this_module, step["Function"])(*params)
 
 if __name__ == "__main__":
     main()

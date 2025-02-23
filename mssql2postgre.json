@@ -9,5 +9,35 @@
     "CreateUniqueConstraint": "create_unique_constraint.sql",
     "CreateForeignKey": "create_foreign_key.sql",
     "CreateIndex": "create_index.sql",
-    "BatchSize": 20000
+    "BatchSize": 20000,
+    "CopyFunctions": [
+        {
+            "Function": "create_tables",
+            "Execute": true,
+            "Description": "Create tables"
+        },
+        {
+            "Function": "copy_data",
+            "Execute": true,
+            "Description": "Copy data"
+        },
+        {
+            "Function": "execute_script",
+            "Execute": true,
+            "ScriptName": "CreateUniqueConstraint_sql",
+            "Description": "Create unique constraint"
+        },
+        {
+            "Function": "execute_script",
+            "Execute": true,
+            "ScriptName": "CreateForeignKey_sql",
+            "Description": "Create foreign key"
+        },
+        {
+            "Function": "execute_script",
+            "Execute": true,
+            "ScriptName": "CreateIndex_sql",
+            "Description": "Create index"
+        }
+    ]
 }
