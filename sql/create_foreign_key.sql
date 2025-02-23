@@ -10,9 +10,13 @@ declare @StrReferencedColumn varchar(max)
 declare @ParentTableSchema varchar(4000)
 declare @ReferencedTableSchema varchar(4000)
 declare @TSQLCreationFK varchar(max)
-declare @TSQLCreationFKALL varchar(max)
 
-set @TSQLCreationFKALL = ''
+IF OBJECT_ID('tempdb..#SQL_TEXT') IS NOT NULL 
+begin
+    DROP TABLE #SQL_TEXT
+end
+create table #SQL_TEXT ([SQL] varchar(max), [name] sysname, [index_name] sysname)
+
 --Written by Percy Reyes www.percyreyes.com
 declare CursorFK cursor for select object_id--, name, object_name( parent_object_id) 
 from sys.foreign_keys
@@ -52,11 +56,12 @@ begin
  set @TSQLCreationFK='ALTER TABLE "'+@ParentTableName+'" ADD CONSTRAINT "'+@ForeignKeyName +'"'
  + ' FOREIGN KEY('+ltrim(@StrParentColumn)+') '+ 'REFERENCES "'+@ReferencedTable+'" ('+ltrim(@StrReferencedColumn)+')' + ';'
  
-set @TSQLCreationFKALL = @TSQLCreationFKALL + @TSQLCreationFK + char(13)+char(10)
+insert into #SQL_TEXT ([sql], [name], [index_name]) values (@TSQLCreationFK, @ParentTableName, @ParentColumn)
 --print @TSQLCreationFK
 fetch next from CursorFK into @ForeignKeyID 
 end
 close CursorFK
 deallocate CursorFK
 
-select @TSQLCreationFKALL as SQL
+select * from #SQL_TEXT
+order by [name], [index_name]

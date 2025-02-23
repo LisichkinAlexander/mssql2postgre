@@ -36,6 +36,14 @@ declare CursorIndex cursor for
  where ix.type>0 and ix.is_primary_key=0 and ix.is_unique_constraint=0 
  and t.is_ms_shipped=0 and t.name<>'sysdiagrams'
  and t.name not like '%$%' and t.name not like '[_]%'
+   -- SQL Server Native Client 11.0 do not support datetimeoffset
+  and t.name not in (
+	select o.name
+	from sysobjects o WITH(NOLOCK)
+	join sys.columns c WITH(NOLOCK) on o.id = c.object_id
+	join sys.types t WITH(NOLOCK) on c.system_type_id = t.system_type_id
+	where t.name = 'datetimeoffset'
+  )
  order by schema_name(t.schema_id), t.name, ix.name
 
 open CursorIndex

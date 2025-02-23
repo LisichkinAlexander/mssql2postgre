@@ -12,10 +12,13 @@ declare @IndexColumnId int
 declare @IsDescendingKey int 
 declare @IsIncludedColumn int
 declare @TSQLScripCreationIndex varchar(max)
-declare @TSQLScripCreationIndexAll varchar(max)
 declare @is_primary_key varchar(100)
 
-set @TSQLScripCreationIndexAll = ''
+IF OBJECT_ID('tempdb..#SQL_TEXT') IS NOT NULL 
+begin
+    DROP TABLE #SQL_TEXT
+end
+create table #SQL_TEXT ([SQL] varchar(max), [name] sysname, [index_name] sysname)
 
 declare CursorIndex cursor for
  select schema_name(t.schema_id) [schema_name], t.name, ix.name,
@@ -81,10 +84,12 @@ set @TSQLScripCreationIndex =''
 set  @TSQLScripCreationIndex='ALTER TABLE "'+ @TableName+ '" ADD CONSTRAINT "' +  @IndexName + '"' + @is_unique_constraint + @is_primary_key + /*@IndexTypeDesc +*/  '('+@IndexColumns+') '+ 
  case when len(@IncludedColumns)>0 then CHAR(13) +'INCLUDE (' + @IncludedColumns+ ')' else '' end /*+ CHAR(13)+'WITH (' + @IndexOptions+ ') ON ' + QUOTENAME(@FileGroupName) */ + ';'  
 --print @TSQLScripCreationIndex
-set @TSQLScripCreationIndexAll = @TSQLScripCreationIndexAll + @TSQLScripCreationIndex + char(13) + char(10)
+insert into #SQL_TEXT ([sql], [name], [index_name]) values (@TSQLScripCreationIndex, @TableName, @IndexName)
+
 fetch next from CursorIndex into  @SchemaName, @TableName, @IndexName, @is_unique_constraint, @is_primary_key, @IndexTypeDesc, @IndexOptions, @FileGroupName
 end
 close CursorIndex
 deallocate CursorIndex
 
-select @TSQLScripCreationIndexAll as SQL
+select * from #SQL_TEXT
+order by [name], [index_name]

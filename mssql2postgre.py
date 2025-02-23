@@ -26,11 +26,13 @@ def execute_sql(sql: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.
     cursor_mssql.execute(sql)
     rows = cursor_mssql.fetchall()
     for row in rows:
-        sql = row.SQL.replace('\n', '').replace('\r', '')
-        if sql:
-            sql_list  = sql.split(";")
-            for sql in sql_list:
-                print(sql)
+        sql_text = row.SQL.replace('\r', '\n')
+        sql = sql_text.replace('\r', '').replace('\n', '')
+        sql_list  = sql.split(";")
+        sql_text_list  = sql_text.split(";")
+        for idx, sql in enumerate(sql_list):
+            if sql:
+                print(sql_text_list[idx])
                 cursor_postgre.execute(sql)
 
 def execute_script(json_data: dict, script_name: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
@@ -141,41 +143,47 @@ def copy_data(json_data, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.e
         batch_size = 50000 if 'BatchSize' not in json_data else int(json_data['BatchSize'])
         cursor_postgre.execute(f"ALTER TABLE {pg_table_name} SET UNLOGGED;")
         try:
+            is_error = False
             cursor_postgre.execute("begin")
-            dict_params = {}
-            while True:
-                cursor = rows_data.fetchmany(batch_size)
-                if not cursor:
-                    break
-                key_has_wrong_char = False
-                for row_data in cursor:
-                    dict_row = dict(zip(columns, row_data))
-                    for key, value in dict_row.items():
-                        if '(' in key or ')' in key:
-                            key_has_wrong_char = True
-                        if key in fields_dict and value and \
-                            (fields_dict[key][0] in ["TEXT", "VARCHAR", "NTEXT", "NVARCHAR"] and fields_dict[key][1] == "BYTEA"):
-                            value = bytearray(value, "utf8")
-                        if key in dict_params:
-                            dict_params[key].append(value)
-                        else:
-                            dict_params[key] = [value]
-                    count += 1
-                    batch_count += 1
-                    if count > 0 and count % batch_size == 0:
+            try:
+                dict_params = {}
+                while True:
+                    cursor = rows_data.fetchmany(batch_size)
+                    if not cursor:
+                        break
+                    key_has_wrong_char = False
+                    for row_data in cursor:
+                        dict_row = dict(zip(columns, row_data))
+                        for key, value in dict_row.items():
+                            if '(' in key or ')' in key:
+                                key_has_wrong_char = True
+                            if key in fields_dict and value and \
+                                (fields_dict[key][0] in ["TEXT", "VARCHAR", "NTEXT", "NVARCHAR"] and fields_dict[key][1] == "BYTEA"):
+                                value = bytearray(value, "utf8")
+                            if key in dict_params:
+                                dict_params[key].append(value)
+                            else:
+                                dict_params[key] = [value]
+                        count += 1
+                        batch_count += 1
+                        if count > 0 and count % batch_size == 0:
+                            insert_to_db(cursor_postgre, insert_sql, dict_params, key_has_wrong_char)
+                            print(f"inserted in batch {count} records: {int(count/row.row_count*100)}%")
+                            dict_params = {}
+                            batch_count = 0
+                    # end for
+                    if dict_params:
+                        print(f"inserted in batch more {batch_count} records")
                         insert_to_db(cursor_postgre, insert_sql, dict_params, key_has_wrong_char)
-                        print(f"inserted in batch {count} records: {int(count/row.row_count*100)}%")
-                        dict_params = {}
-                        batch_count = 0
-                # end for
-                if dict_params:
-                    print(f"inserted in batch more {batch_count} records")
-                    insert_to_db(cursor_postgre, insert_sql, dict_params, key_has_wrong_char)
-            # end while
+                # end while
+            except Exception as e:
+                is_error = True
+                raise
             print("commit")
             cursor_postgre.execute("commit")
         finally:
-            cursor_postgre.execute(f"ALTER TABLE {pg_table_name} SET LOGGED;")
+            if not is_error:
+                cursor_postgre.execute(f"ALTER TABLE {pg_table_name} SET LOGGED;")
         print(f"{datetime.datetime.now()}: inserted {count} data into {table_name}")
     print("All data copied")
 
@@ -205,7 +213,7 @@ def main() -> None:
         },
         {
             "func": copy_data,
-            "check": "NeedCreateTable"
+            "check": "NeedCopyData"
         },
         {
             "func": create_unique_constraint,

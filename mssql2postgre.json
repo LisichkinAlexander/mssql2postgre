@@ -9,5 +9,5 @@
     "CreateUniqueConstraint": "create_unique_constraint.sql",
     "CreateForeignKey": "create_foreign_key.sql",
     "CreateIndex": "create_index.sql",
-    "BatchSize": 25000
+    "BatchSize": 20000
 }
