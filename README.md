@@ -11,6 +11,11 @@ KEY FEATURES
     Ease of configuration - all the parameters required for migration should be put in one single json file.
     Ability to transfer only a data (in case of an existing database).
 
+KEY FEATURES
+
+	Ease of use - the only thing needed to run this script is the Python
+	Script support MS SQL user-defined data types
+	
 SYSTEM REQUIREMENTS
 
     Python 3.10 or above
@@ -21,6 +26,7 @@ SYSTEM REQUIREMENTS
 	pip install -r requirements.txt.
 
 USAGE
+
 1. Create a new database.
     Sample:CREATE DATABASE my_postgresql_database;
 

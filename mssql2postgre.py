@@ -20,7 +20,7 @@ def connect(json_data: dict):
     return conn_mssql, conn_postgre
 
 def execute_sql(sql: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection) -> None:
-    """ Выполнить sql """
+    """ Execute sql """
     cursor_mssql = conn_mssql.cursor()
     cursor_postgre = conn_postgre.cursor()
     cursor_mssql.execute(sql)
@@ -36,7 +36,7 @@ def execute_sql(sql: str, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.
                 cursor_postgre.execute(sql)
 
 def execute_script(json_data: dict, conn_mssql: pyodbc.Connection, conn_postgre: psycopg2.extensions.connection, script_name: str) -> None:
-    """ Выполнить script_name """
+    """ Execute script_name """
     sql = json_data[script_name]
     execute_sql(sql, conn_mssql, conn_postgre)
 
